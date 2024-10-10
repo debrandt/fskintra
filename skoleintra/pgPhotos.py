@@ -2,14 +2,14 @@
 
 import glob
 import json
-import md5
+from hashlib import md5
 import os
 
-import config
-import sbs4
-import schildren
-import semail
-import surllib
+from . import config
+from . import sbs4
+from . import schildren
+from . import semail
+from . import surllib
 
 SECTION = 'pht'
 MAX_CACHE_AGE = .99
@@ -41,34 +41,33 @@ def sendPhotos(cname, title, mid, photos):
         pending = photos
 
     # Send the photos in e-mails of PHOTOS_PER_EMAIL pictures
-    ecount = (len(pending)-1) / PHOTOS_PER_EMAIL + 1
+    ecount = (len(pending) - 1) // PHOTOS_PER_EMAIL + 1
 
     for ei in range(ecount):
         pics = pending[:PHOTOS_PER_EMAIL]
         del pending[:PHOTOS_PER_EMAIL]
 
         # Create HTML snippet
-        itag = u'<img style="max-width: 100%">'
-        ebs = sbs4.beautify(u'<h2></h2><p>%s</p>' %
-                            u'<br/>'.join([itag] * len(pics)))
+        itag = '<img style="max-width: 100%">'
+        ebs = sbs4.beautify('<h2></h2><p>%s</p>' %
+                            '<br/>'.join([itag] * len(pics)))
         ebs.h2.string = title
         for i, img in enumerate(ebs.select('img')):
             img['src'] = pics[i]
 
-        msg = semail.Message(cname, SECTION, unicode(ebs))
+        msg = semail.Message(cname, SECTION, str(ebs))
         if ecount > 1:
-            msg.setTitle(u'Billeder: %s (%d/%d)' % (title, ei+1, ecount))
+            msg.setTitle('Billeder: %s (%d/%d)' % (title, ei+1, ecount))
         else:
-            msg.setTitle(u'Billeder: %s' % title)
+            msg.setTitle('Billeder: %s' % title)
         msg.setMessageID(mid)
         msg.setData(pics)
         msg.maybeSend()
 
 
-def findPhotosInFolder(cname, url, bs):
+def findPhotosInFolder(cname, title, url, bs):
     '''Search a folder for new photos'''
-    title = bs.h2.text.strip()
-    mid = md5.md5(url.encode('utf-8')).hexdigest()[::2]
+    mid = md5(url.encode('utf-8')).hexdigest()[::2]
     photos = []
 
     for img in bs.select('img'):
@@ -77,9 +76,9 @@ def findPhotosInFolder(cname, url, bs):
         url = surllib.absurl(img['src'])
         photos.append(url)
 
-    ptext = u'%d billeder' % len(photos) if len(photos) != 1 else '1 billede'
+    ptext = '%d billeder' % len(photos) if len(photos) != 1 else '1 billede'
 
-    config.clog(cname, u'Billeder: %s: %s' % (title, ptext))
+    config.clog(cname, 'Billeder: %s: %s' % (title, ptext))
 
     if not photos:
         return
@@ -90,25 +89,25 @@ def findPhotosInFolder(cname, url, bs):
 def findPhotos(cname, bs):
     prefix = schildren.getChildURLPrefix(cname)
 
-    for opt in bs.select('#sk-photos-toolbar-filter option'):
-        if not opt.has_attr('value'):
+    for item in bs.select('a.sk-photoalbums-list-item'):
+        if not item.has_attr('href'):
             continue
-        url = surllib.absurl(opt['value'])
-        folder = opt.text.strip()
+        url = surllib.absurl(item['href'])
+        title = item.find('div', 'sk-photoalbum-list-item-title').text.strip()
         if not url.startswith(prefix):
-            config.clog(cname, u'Billeder: %s: ukendt URL %r' %
-                        (folder, opt['value']))
+            config.clog(cname, 'Billeder: %s: ukendt URL %r' %
+                        (title, item['href']))
             continue
 
         bs2 = surllib.skoleGetURL(url, True, MAX_CACHE_AGE)
-        findPhotosInFolder(cname, url, bs2)
+        findPhotosInFolder(cname, title, url, bs2)
 
 
 @config.Section(SECTION)
 def skolePhotos(cname):
     'Billeder'
-    url = schildren.getChildURL(cname, '/photos/archives')
+    url = schildren.getChildURL(cname, '/photos/albums')
     bs = surllib.skoleGetURL(url, True, MAX_CACHE_AGE)
 
-    config.clog(cname, u'Kigger efter billeder')
+    config.clog(cname, 'Kigger efter billeder')
     findPhotos(cname, bs)
