@@ -41,7 +41,7 @@ def sendPhotos(cname, title, mid, photos):
         pending = photos
 
     # Send the photos in e-mails of PHOTOS_PER_EMAIL pictures
-    ecount = (len(pending)-1) / PHOTOS_PER_EMAIL + 1
+    ecount = (len(pending) - 1) // PHOTOS_PER_EMAIL + 1
 
     for ei in range(ecount):
         pics = pending[:PHOTOS_PER_EMAIL]
@@ -65,9 +65,8 @@ def sendPhotos(cname, title, mid, photos):
         msg.maybeSend()
 
 
-def findPhotosInFolder(cname, url, bs):
+def findPhotosInFolder(cname, title, url, bs):
     '''Search a folder for new photos'''
-    title = bs.h2.text.strip()
     mid = md5(url.encode('utf-8')).hexdigest()[::2]
     photos = []
 
@@ -90,24 +89,24 @@ def findPhotosInFolder(cname, url, bs):
 def findPhotos(cname, bs):
     prefix = schildren.getChildURLPrefix(cname)
 
-    for opt in bs.select('#sk-photos-toolbar-filter option'):
-        if not opt.has_attr('value'):
+    for item in bs.select('a.sk-photoalbums-list-item'):
+        if not item.has_attr('href'):
             continue
-        url = surllib.absurl(opt['value'])
-        folder = opt.text.strip()
+        url = surllib.absurl(item['href'])
+        title = item.find('div', 'sk-photoalbum-list-item-title').text.strip()
         if not url.startswith(prefix):
             config.clog(cname, 'Billeder: %s: ukendt URL %r' %
-                        (folder, opt['value']))
+                        (title, item['href']))
             continue
 
         bs2 = surllib.skoleGetURL(url, True, MAX_CACHE_AGE)
-        findPhotosInFolder(cname, url, bs2)
+        findPhotosInFolder(cname, title, url, bs2)
 
 
 @config.Section(SECTION)
 def skolePhotos(cname):
     'Billeder'
-    url = schildren.getChildURL(cname, '/photos/archives')
+    url = schildren.getChildURL(cname, '/photos/albums')
     bs = surllib.skoleGetURL(url, True, MAX_CACHE_AGE)
 
     config.clog(cname, 'Kigger efter billeder')
